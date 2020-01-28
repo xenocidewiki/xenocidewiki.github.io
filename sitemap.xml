@@ -3,11 +3,27 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   
   <url>
-    <loc>https://xenocide.wiki/tags/</loc>
+    <loc>https://xenocide.wiki/posts/</loc>
+    <lastmod>2020-01-28T20:55:44+00:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://xenocide.wiki/posts/xmas-ctf-kernel-crackme-writeup/</loc>
+    <lastmod>2020-01-28T20:55:44+00:00</lastmod>
   </url>
   
   <url>
     <loc>https://xenocide.wiki/</loc>
+    <lastmod>2020-01-28T20:55:44+00:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://xenocide.wiki/about/</loc>
+    <lastmod>2020-01-28T20:34:09+00:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://xenocide.wiki/tags/</loc>
   </url>
   
 </urlset>
