@@ -4,14 +4,14 @@
 	<meta charset="utf-8" />
 	<meta http-equiv="X-UA-Compatible" content="IE=edge"><title>X-Mas CTF | Kernel Crackme Writeup - xenocidewiki&#39;s blog</title><link rel="icon" type="image/png" href=icons/myicon.png /><meta name="viewport" content="width=device-width, initial-scale=1">
 	<meta property="og:title" content="X-Mas CTF | Kernel Crackme Writeup" />
-<meta property="og:description" content="Writeup of an interesting Windows Kernel rev challenge I solved during X-Mas CTF 2019." />
+<meta property="og:description" content="Writeup of an interesting Windows kernel reversing challenge I solved during X-Mas CTF 2019." />
 <meta property="og:type" content="article" />
 <meta property="og:url" content="https://xenocide.wiki/posts/xmas-ctf-kernel-crackme-writeup/" />
-<meta property="article:published_time" content="2020-01-28T20:55:44+00:00" />
-<meta property="article:modified_time" content="2020-01-28T20:55:44+00:00" />
+<meta property="article:published_time" content="2020-02-05T02:15:00+00:00" />
+<meta property="article:modified_time" content="2020-02-05T02:15:00+00:00" />
 <meta name="twitter:card" content="summary"/>
 <meta name="twitter:title" content="X-Mas CTF | Kernel Crackme Writeup"/>
-<meta name="twitter:description" content="Writeup of an interesting Windows Kernel rev challenge I solved during X-Mas CTF 2019."/>
+<meta name="twitter:description" content="Writeup of an interesting Windows kernel reversing challenge I solved during X-Mas CTF 2019."/>
 <link href="https://fonts.googleapis.com/css?family=Ubuntu:300,400,300italic,400italic|Raleway:200,300" rel="stylesheet">
 
 	<link rel="stylesheet" type="text/css" media="screen" href="https://xenocide.wiki/css/normalize.css" />
@@ -60,16 +60,59 @@
 
 		<div class="post-header">
 			<h1 class="title">X-Mas CTF | Kernel Crackme Writeup</h1>
-			<div class="meta">Posted at &mdash; Jan 28, 2020</div>
+			<div class="meta">Posted at &mdash; Feb 5, 2020</div>
 		</div>
 
 		<div class="markdown">
-			<p>Writeup coming soon!~</p>
+			<p>For this challenge we are provided with two files, &ldquo;challenge.exe&rdquo; and &ldquo;X-MAS_kernel_crackme.sys&rdquo;.</p>
+<p>I first looked at challenge.exe, but nothing particularly interesting is happening in there.
+It simply creates a service which is used to load the driver, asks for a license key, and then communicates with the driver making it do most of the work.</p>
+<p><img src="/img/xmasctf2019kernelrev1.png" alt="challenge.exe driver comms"></p>
+<p>Looking at the image above it is evident that challenge.exe reads in a license key (I suppose this will be the flag), then sends it off to the driver using WriteFile, and we can guess that after the driver has done its work, challenge.exe uses ReadFile to read in the modified buffer, which is then used in a comparison with the enc_flag string.</p>
+<p>And so my journey with the kernel driver begun&hellip;</p>
+<p>Drivers communicate using I/O Request Packets (IRP) in order to perform certain functionality (you can read more about it <a href="https://www.codeproject.com/Articles/9504/Driver-Development-Part-1-Introduction-to-Drivers">here</a>). Since we are using WriteFile and ReadFile, we will need to look what the driver does when these requests are made. After opening the driver in IDA, I quickly found the major function table:</p>
+<p><img src="/img/xmasctf2019kernelrev2.png" alt="driver major function table"></p>
+<p>The table simply tells the driver what to do depending on the request.
+When we call WriteFile into the driver from a user-mode application, we will perform an IRP_MJ_WRITE request, and when we call ReadFile, we will be performing an IRP_MJ_READ request. The values of those requests in the table are 0x4 and 0x3 respectively, hence we will need to focus on what happens when the following functions are used:</p>
+<div class="highlight"><pre style="color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-cpp" data-lang="cpp">DriverObject<span style="color:#719e07">-</span><span style="color:#719e07">&gt;</span>MajorFunction[<span style="color:#2aa198">3</span>] <span style="color:#719e07">=</span> (PDRIVER_DISPATCH)sub_1400015C0;
+DriverObject<span style="color:#719e07">-</span><span style="color:#719e07">&gt;</span>MajorFunction[<span style="color:#2aa198">4</span>] <span style="color:#719e07">=</span> (PDRIVER_DISPATCH)sub_140001720;
+</code></pre></div><p>I first considered what happens when an IRP_MJ_WRITE (0x4) request is made.
+After looking a bit around, I figured the driver simply takes the license key as input, and does something to it&hellip;
+I found two interesting functions, sub_1400024CC and sub_140001D68.</p>
+<p><img src="/img/xmasctf2019kernelrev3.png" alt="interesting function calls"></p>
+<p>I poked a bit around sub_1400024CC and figured that it was doing something to a predefined buffer unk_14000B2F0, and set the modified values in unk_14000C540 (which I found to be referenced all over different function calls in the next function).</p>
+<p>I then moved to the next function, and taking a look at sub_140001D68 gave me a big scare:</p>
+<p><img src="/img/xmasctf2019kernelrev4.png" alt="jump table"></p>
+<p>It is a massive jump table and was a bit spooky. So I started to look into the particular functions that the jump table referenced and found out that it repeats certain operations in multiple rounds, all of which are done on 16 bytes of the license key at a time. My dumb brain didn't recognize this pattern and so I attempted at writing a script which would reverse the operations, but I got slightly stuck on this one:</p>
+<p><img src="/img/xmasctf2019kernelrev5.png" alt="spooky scary operations"></p>
+<p>After hours of getting nowhere, I received help from my friend Mev, who made me realize this was AES in ECB mode. And so the weird function we saw at first (sub_1400024CC) which set the unk_14000C540 buffer is simply the AES key expansion algorithm. Now, because that buffer is set using a predefined value stored in the driver, we already have the key!</p>
+<p>Taking a quick look at the IRP_MJ_READ (0x3) request, it was evident that the driver simply writes back the encrypted flag to challenge.exe running in user-mode. And like I suspected, it is compared to a weird sequence of bytes which I assumed to be the encrypted flag.</p>
+<p>So I pulled out the key from unk_14000B2F0 in the kernel driver, and the flag from enc_flag in the user-mode application:</p>
+<div class="highlight"><pre style="color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-fallback" data-lang="fallback">key: KaPdSgVkXp2s5v8y
+enc_flag: F2 63 69 4F F5 CB FB F4 98 19 C2 FD 39 ED F9 CC 5D EC D9 EC 66 A5 30 D1 82 46 7D A9 FD 5B 3C BF 1C 3D BD 70 26 00 6A 43 C4 0A 47 4C B7 56 2D 50
+</code></pre></div><p>I then went straight to <a href="https://gchq.github.io/CyberChef">CyberChef</a>, used AES Decrypt in ECB mode using the above values, and got the flag: <code>X-MAS{060b192f0063cc9ab6361c2329687506f50321d8}.</code></p>
+<p>Lessons learned:
+Think twice before starting to reverse a massive jump table, there is probably something you are missing.</p>
+<p>All in all, I guess I'll have an easier time recognizing AES in the future 😩</p>
 
 		</div>
 
 		<div class="post-tags">
 			
+				
+					<nav class="nav tags">
+							<ul class="flat">
+								
+								<li><a href="/tags/reversing">reversing</a></li>
+								
+								<li><a href="/tags/kernel">kernel</a></li>
+								
+								<li><a href="/tags/windows">windows</a></li>
+								
+								<li><a href="/tags/ctf">ctf</a></li>
+								
+							</ul>
+					</nav>
 				
 			
 		</div>

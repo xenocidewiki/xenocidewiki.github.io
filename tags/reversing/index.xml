@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8" standalone="yes"?>
 <rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
   <channel>
-    <title>xenocidewiki&#39;s blog</title>
-    <link>https://xenocide.wiki/</link>
-    <description>Recent content on xenocidewiki&#39;s blog</description>
+    <title>reversing on xenocidewiki&#39;s blog</title>
+    <link>https://xenocide.wiki/tags/reversing/</link>
+    <description>Recent content in reversing on xenocidewiki&#39;s blog</description>
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
     <copyright>© xenocide.wiki</copyright>
     <lastBuildDate>Wed, 05 Feb 2020 02:15:00 +0000</lastBuildDate>
     
-	<atom:link href="https://xenocide.wiki/index.xml" rel="self" type="application/rss+xml" />
+	<atom:link href="https://xenocide.wiki/tags/reversing/index.xml" rel="self" type="application/rss+xml" />
     
     
     <item>
@@ -21,17 +21,6 @@
       <description>For this challenge we are provided with two files, &amp;ldquo;challenge.exe&amp;rdquo; and &amp;ldquo;X-MAS_kernel_crackme.sys&amp;rdquo;.
 I first looked at challenge.exe, but nothing particularly interesting is happening in there. It simply creates a service which is used to load the driver, asks for a license key, and then communicates with the driver making it do most of the work.
 Looking at the image above it is evident that challenge.exe reads in a license key (I suppose this will be the flag), then sends it off to the driver using WriteFile, and we can guess that after the driver has done its work, challenge.</description>
-    </item>
-    
-    <item>
-      <title>About</title>
-      <link>https://xenocide.wiki/about/</link>
-      <pubDate>Tue, 28 Jan 2020 20:34:09 +0000</pubDate>
-      
-      <guid>https://xenocide.wiki/about/</guid>
-      <description>Hello!
-I am xenocidewiki, a mathematics student at the University of Edinburgh. This is my blog where I will post random reverse engineering and programming content, as well as my writeups for various CTF challenges that I solve. I am currently playing for the cr0wn and focus on RE tasks.
-I have rather broad interests, RE is naturally one of them, however I also thoroughly enjoy looking at things within cryptography, pwning or any type of exploitation really, the windows kernel, and game hacks.</description>
     </item>
     
   </channel>
