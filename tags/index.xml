@@ -7,20 +7,38 @@
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
     <copyright>© xenocide.wiki</copyright>
-    <lastBuildDate>Wed, 05 Feb 2020 02:15:00 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 04 Jan 2021 01:25:00 +0100</lastBuildDate>
     
 	<atom:link href="https://xenocide.wiki/tags/index.xml" rel="self" type="application/rss+xml" />
     
     
     <item>
+      <title>angr</title>
+      <link>https://xenocide.wiki/tags/angr/</link>
+      <pubDate>Mon, 04 Jan 2021 01:25:00 +0100</pubDate>
+      
+      <guid>https://xenocide.wiki/tags/angr/</guid>
+      <description></description>
+    </item>
+    
+    <item>
       <title>ctf</title>
       <link>https://xenocide.wiki/tags/ctf/</link>
-      <pubDate>Wed, 05 Feb 2020 02:15:00 +0000</pubDate>
+      <pubDate>Mon, 04 Jan 2021 01:25:00 +0100</pubDate>
       
       <guid>https://xenocide.wiki/tags/ctf/</guid>
       <description></description>
     </item>
     
+    <item>
+      <title>icectf</title>
+      <link>https://xenocide.wiki/tags/icectf/</link>
+      <pubDate>Mon, 04 Jan 2021 01:25:00 +0100</pubDate>
+      
+      <guid>https://xenocide.wiki/tags/icectf/</guid>
+      <description></description>
+    </item>
+
     <item>
       <title>kernel</title>
       <link>https://xenocide.wiki/tags/kernel/</link>
@@ -33,12 +51,12 @@
     <item>
       <title>reversing</title>
       <link>https://xenocide.wiki/tags/reversing/</link>
-      <pubDate>Wed, 05 Feb 2020 02:15:00 +0000</pubDate>
+      <pubDate>Mon, 04 Jan 2021 01:25:00 +0100</pubDate>
       
       <guid>https://xenocide.wiki/tags/reversing/</guid>
       <description></description>
     </item>
-    
+
     <item>
       <title>windows</title>
       <link>https://xenocide.wiki/tags/windows/</link>

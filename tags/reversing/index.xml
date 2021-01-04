@@ -7,10 +7,21 @@
     <generator>Hugo -- gohugo.io</generator>
     <language>en-us</language>
     <copyright>© xenocide.wiki</copyright>
-    <lastBuildDate>Wed, 05 Feb 2020 02:15:00 +0000</lastBuildDate>
+    <lastBuildDate>Mon, 04 Jan 2021 01:25:00 +0100</lastBuildDate>
     
 	<atom:link href="https://xenocide.wiki/tags/reversing/index.xml" rel="self" type="application/rss+xml" />
     
+    
+    <item>
+      <title>IceCTF 2020 | Hydrogen Bomb Writeup</title>
+      <link>https://xenocide.wiki/posts/icectf-hydrogen-bomb/</link>
+      <pubDate>Mon, 04 Jan 2021 01:25:00 +0100</pubDate>
+      
+      <guid>https://xenocide.wiki/posts/icectf-hydrogen-bomb/</guid>
+      <description>Intro We are given a binary called bomb which is a billion functions taking input, where the goal is to find a sequence of inputs that gets us to a function called defuse which prints the flag.
+We will embark on a journey that fried my brain and left me with two(!) out of the three braincells I already had remaining.
+In order to get to defuse, we need to pass the following check:</description>
+    </item>
     
     <item>
       <title>X-Mas CTF 2019 | Kernel Crackme Writeup</title>

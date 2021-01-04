@@ -3,10 +3,25 @@
   xmlns:xhtml="http://www.w3.org/1999/xhtml">
   
   <url>
-    <loc>https://xenocide.wiki/tags/ctf/</loc>
-    <lastmod>2020-02-05T02:15:00+00:00</lastmod>
+    <loc>https://xenocide.wiki/tags/angr/</loc>
+    <lastmod>2021-01-04T01:25:00+01:00</lastmod>
   </url>
   
+  <url>
+    <loc>https://xenocide.wiki/tags/ctf/</loc>
+    <lastmod>2021-01-04T01:25:00+01:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://xenocide.wiki/tags/icectf/</loc>
+    <lastmod>2021-01-04T01:25:00+01:00</lastmod>
+  </url>
+  
+  <url>
+    <loc>https://xenocide.wiki/posts/icectf-hydrogen-bomb/</loc>
+    <lastmod>2021-01-04T01:25:00+01:00</lastmod>
+  </url>
+
   <url>
     <loc>https://xenocide.wiki/tags/kernel/</loc>
     <lastmod>2020-02-05T02:15:00+00:00</lastmod>
@@ -14,19 +29,19 @@
   
   <url>
     <loc>https://xenocide.wiki/posts/</loc>
-    <lastmod>2020-02-05T02:15:00+00:00</lastmod>
+    <lastmod>2021-01-04T01:25:00+01:00</lastmod>
   </url>
   
   <url>
     <loc>https://xenocide.wiki/tags/reversing/</loc>
-    <lastmod>2020-02-05T02:15:00+00:00</lastmod>
+    <lastmod>2021-01-04T01:25:00+01:00</lastmod>
   </url>
   
   <url>
     <loc>https://xenocide.wiki/tags/</loc>
-    <lastmod>2020-02-05T02:15:00+00:00</lastmod>
+    <lastmod>2021-01-04T01:25:00+01:00</lastmod>
   </url>
-  
+
   <url>
     <loc>https://xenocide.wiki/tags/windows/</loc>
     <lastmod>2020-02-05T02:15:00+00:00</lastmod>
@@ -38,12 +53,12 @@
   </url>
   
   <url>
-    <loc>https://xenocide.wiki/</loc>
-    <lastmod>2020-02-05T02:15:00+00:00</lastmod>
+    <loc>https://xenocide.wiki/about/</loc>
+    <lastmod>2020-01-28T20:34:09+00:00</lastmod>
   </url>
   
   <url>
-    <loc>https://xenocide.wiki/about/</loc>
+    <loc>https://xenocide.wiki/</loc>
     <lastmod>2020-01-28T20:34:09+00:00</lastmod>
   </url>
   

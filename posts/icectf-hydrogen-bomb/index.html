@@ -1,0 +1,881 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<meta charset="utf-8" />
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<link rel="stylesheet"
+      href="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/styles/default.min.css">
+	<script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/10.5.0/highlight.min.js"></script><title>IceCTF 2020 | Hydrogen Bomb Writeup - xenocidewiki&#39;s blog</title><link rel="icon" type="image/png" href=icons/myicon.png /><meta name="viewport" content="width=device-width, initial-scale=1">
+	<meta property="og:title" content="IceCTF 2020 | Hydrogen Bomb Writeup" />
+<meta property="og:description" content="Interesting reverse engineering challenge which required pathfinding and symbolic execution using angr." />
+<meta property="og:type" content="article" />
+<meta property="og:url" content="https://xenocide.wiki/posts/icectf-hydrogen-bomb/" />
+<meta property="article:published_time" content="2021-01-04T01:25:00+01:00" />
+<meta property="article:modified_time" content="2021-01-04T01:25:00+01:00" />
+<meta name="twitter:card" content="summary"/>
+<meta name="twitter:title" content="IceCTF 2020 | Hydrogen Bomb Writeup"/>
+<meta name="twitter:description" content="Interesting reverse engineering challenge which required pathfinding and symbolic execution using angr."/>
+<link href="https://fonts.googleapis.com/css?family=Ubuntu:300,400,300italic,400italic|Raleway:200,300" rel="stylesheet">
+
+	<link rel="stylesheet" type="text/css" media="screen" href="https://xenocide.wiki/css/normalize.css" />
+	<link rel="stylesheet" type="text/css" media="screen" href="https://xenocide.wiki/css/main.css" />
+	<link rel="stylesheet" type="text/css" href="https://xenocide.wiki/css/custom.css" />
+	<link rel="stylesheet" type="text/css" href="https://xenocide.wiki/css/dark.css"  />
+	<link rel="stylesheet" type="text/css" href="https://xenocide.wiki/css/custom-dark.css"  />
+
+	<script src="https://cdn.jsdelivr.net/npm/feather-icons/dist/feather.min.js"></script>
+	<script src="https://xenocide.wiki/js/main.js"></script>
+	<script src="https://xenocide.wiki/js/abc.js"></script>
+	<script src="https://xenocide.wiki/js/xyz.js"></script>
+	<script src="https://code.jquery.com/jquery-3.4.1.js"></script>
+</head>
+
+<body>
+	<div class="container wrapper post">
+		<div class="header">
+	<h1 class="site-title"><a href="https://xenocide.wiki/">xenocidewiki&#39;s blog</a></h1>
+	<div class="site-description"><h2>Ramblings of a bored university student on the topics of reverse engineering, CTFs, and other technical wizardry</h2><nav class="nav social">
+			<ul class="flat"><a href="https://github.com/xenocidewiki" title="Github"><i data-feather="github"></i></a><a href="https://twitter.com/xenocidewiki" title="Twitter"><i data-feather="twitter"></i></a></ul>
+		</nav>
+	</div>
+
+	<nav class="nav">
+		<ul class="flat">
+			
+			<li>
+				<a href="/">Home</a>
+			</li>
+			
+			<li>
+				<a href="/posts">All posts</a>
+			</li>
+			
+			<li>
+				<a href="/about">About</a>
+			</li>
+			
+			<li>
+				<a href="/tags">Tags</a>
+			</li>
+			
+		</ul>
+	</nav>
+</div>
+
+
+		<div class="post-header">
+			<h1 class="title">IceCTF 2020 | Hydrogen Bomb Writeup</h1>
+			<div class="meta">Posted at &mdash; Jan 4, 2021</div>
+		</div>
+
+		<div class="markdown">
+			<h2 id="intro">Intro</h2>
+<p>We are given a binary called <code>bomb</code> which is a billion functions taking input, where the goal is to find a sequence of inputs that gets us to a function called <code>defuse</code> which prints the flag.</p>
+<p>We will embark on a journey that fried my brain and left me with two(!) out of the three braincells I already had remaining.</p>
+<p>In order to get to <code>defuse</code>, we need to pass the following check:</p>
+<p><img src="../../collectible.png" alt="Collectibles"></p>
+<p>In order to do that, we have to visit a few specific functions that perform an OR operation on the global variable (which is initially 0), after which <code>collectibles</code> becomes <code>1023</code> and is able to pass the check:</p>
+<p><img src="../../collectiblespath.png" alt="Collectibles Xrefs"></p>
+<h2 id="how-to-solve-it">How to solve it</h2>
+<p>My first idea was to see if I can manually get to defuse through the required functions by clicking a sequence of functions in IDA, unfortunately due to the 1600+ functions available this was not really a possibility.</p>
+<p>Second idea was to use the integrated graph functionality IDA has, but instead of anything nice coming out of it we got a sick ass star destroyer:</p>
+<p><img src="../../stardestroyer.png" alt="Star Destroyer Call Flow"></p>
+<p>As much as I love the Empire, this was very unhelpful :(</p>
+<p>Well, how about a big brain strat then, we run pathfinding algorithms, that should work! Right&hellip;?</p>
+<p>IDA has an integrated pathfinding function, you can get there by doing a similar sequence of operations to the following:</p>
+<blockquote>
+<p>Right Click-&gt;Proximity Browser-&gt;Right Click-&gt;Add Node(s)-&gt;Right Click-&gt;Find Path</p>
+</blockquote>
+<p>MFW IDA dies again because of too many functions.</p>
+<p>As a result, I engaged 300iq mode and ran the following command:</p>
+<div class="highlight"><pre style="color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-fallback" data-lang="fallback"> .\idat64.exe &#34;-Ohexx64:-new:kurwa.c:ALL&#34; -A &#34;{PATH_TO_BOMB}\bomb&#34;
+</code></pre></div><p>What does it do you ask? Well, that uses the amazing IDA CLI to decompile all functions for us and put it into a file we called <code>kurwa.c</code>.</p>
+<p>My smort teammate wrote up a quick pathfinding algorithm in Haxe™ in order to find which functions connected to which, and used that to find a path that would lead to <code>defuse</code> with the required checkpoints. (Note: this was after 400 failed attempts and not realizing that some functions were dead ends, fortunately the decompiler noticed this, our initial approach which used ASM only didn&rsquo;t :c)</p>
+<p>WOOOOOSH, okay we got the PATH (the addresses are taken from IDA):</p>
+<div class="highlight"><div style="color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4">
+<table style="border-spacing:0;padding:0;margin:0;border:0;width:auto;overflow:auto;display:block;"><tr><td style="vertical-align:top;padding:0;margin:0;border:0;">
+<pre style="color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">  1
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">  2
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">  3
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">  4
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">  5
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">  6
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">  7
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">  8
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">  9
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 10
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 11
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 12
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 13
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 14
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 15
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 16
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 17
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 18
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 19
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 20
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 21
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 22
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 23
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 24
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 25
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 26
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 27
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 28
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 29
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 30
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 31
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 32
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 33
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 34
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 35
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 36
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 37
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 38
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 39
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 40
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 41
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 42
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 43
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 44
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 45
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 46
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 47
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 48
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 49
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 50
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 51
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 52
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 53
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 54
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 55
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 56
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 57
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 58
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 59
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 60
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 61
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 62
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 63
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 64
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 65
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 66
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 67
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 68
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 69
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 70
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 71
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 72
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 73
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 74
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 75
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 76
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 77
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 78
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 79
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 80
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 81
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 82
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 83
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 84
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 85
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 86
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 87
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 88
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 89
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 90
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 91
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 92
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 93
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 94
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 95
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 96
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 97
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 98
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050"> 99
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">100
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">101
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">102
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">103
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">104
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">105
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">106
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">107
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">108
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">109
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">110
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">111
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">112
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">113
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">114
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">115
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">116
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">117
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">118
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">119
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">120
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">121
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">122
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">123
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">124
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">125
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">126
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">127
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">128
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">129
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">130
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">131
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">132
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">133
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">134
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">135
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">136
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">137
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">138
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">139
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">140
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">141
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">142
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">143
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">144
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">145
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">146
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">147
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">148
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">149
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">150
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">151
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">152
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">153
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">154
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">155
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">156
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">157
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">158
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">159
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">160
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">161
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">162
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">163
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">164
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">165
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">166
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">167
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">168
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">169
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">170
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">171
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">172
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">173
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">174
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">175
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">176
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">177
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">178
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">179
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">180
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">181
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">182
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">183
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">184
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">185
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">186
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">187
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">188
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">189
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">190
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">191
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">192
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">193
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">194
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">195
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">196
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">197
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">198
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">199
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">200
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">201
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">202
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">203
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">204
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">205
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">206
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">207
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">208
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">209
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">210
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">211
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">212
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">213
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">214
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">215
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">216
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">217
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">218
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">219
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">220
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">221
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">222
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">223
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">224
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">225
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">226
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">227
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">228
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">229
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">230
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">231
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">232
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">233
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">234
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">235
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">236
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">237
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">238
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">239
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">240
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">241
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">242
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">243
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">244
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">245
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">246
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">247
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">248
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">249
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">250
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">251
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">252
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">253
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">254
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">255
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">256
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">257
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">258
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">259
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">260
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">261
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">262
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">263
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">264
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">265
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">266
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">267
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">268
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">269
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">270
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">271
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">272
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">273
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">274
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">275
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">276
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">277
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">278
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">279
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">280
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">281
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">282
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">283
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">284
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">285
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">286
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">287
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">288
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">289
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">290
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">291
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">292
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">293
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">294
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">295
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">296
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">297
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">298
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">299
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">300
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">301
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">302
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">303
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">304
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">305
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">306
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">307
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">308
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">309
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">310
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">311
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">312
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">313
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">314
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">315
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">316
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">317
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">318
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">319
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">320
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">321
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">322
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">323
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">324
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">325
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">326
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">327
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">328
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">329
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">330
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">331
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">332
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">333
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">334
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">335
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">336
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">337
+</span><span style="margin-right:0.4em;padding:0 0.4em 0 0.4em;color:#495050">338
+</span></code></pre></td>
+<td style="vertical-align:top;padding:0;margin:0;border:0;;width:100%">
+<pre style="color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-go" data-lang="go">  # wiring <span style="color:#719e07">-</span>&gt; EERYGRINGO
+  <span style="color:#2aa198">0x48D46A</span>, # wiring
+  <span style="color:#2aa198">0x4080F3</span>, # FULFILSIMILE
+  <span style="color:#2aa198">0x408229</span>, # USEABLECHUMP
+  <span style="color:#2aa198">0x408354</span>, # HUSKYMULLAHS
+  <span style="color:#2aa198">0x4084FC</span>, # SERVESTILT
+  <span style="color:#2aa198">0x408632</span>, # MATTEJOYED
+  <span style="color:#2aa198">0x40E4BE</span>, # SHOESITAR
+  <span style="color:#2aa198">0x40F521</span>, # ATONALHOAGIE
+  <span style="color:#2aa198">0x4153CA</span>, # WOBBLEFORLORN
+  <span style="color:#2aa198">0x416268</span>, # NUPTIALAZALEA
+  <span style="color:#2aa198">0x41BEAE</span>, # MATCHWINDBAG
+  <span style="color:#2aa198">0x41CDE0</span>, # POTABLEHAGGARD
+  <span style="color:#2aa198">0x422AB7</span>, # BOOZERPOISON
+  <span style="color:#2aa198">0x423A49</span>, # SKYJACKARTISTE
+  <span style="color:#2aa198">0x42391B</span>, # GENETICPOACHER
+  <span style="color:#2aa198">0x42379B</span>, # USHEREDPREMIUM
+  <span style="color:#2aa198">0x429B7D</span>, # MUCOUSEPISODE
+  <span style="color:#2aa198">0x42A54D</span>, # SERIALSOYA
+  <span style="color:#2aa198">0x430767</span>, # PARTIALTROPHY
+  <span style="color:#2aa198">0x4311EA</span>, # SNIPPYNAVE
+  <span style="color:#2aa198">0x4374C5</span>, # FREEZERROBS
+  <span style="color:#2aa198">0x437DE7</span>, # GENTNEBULA
+  <span style="color:#2aa198">0x43E1E2</span>, # NASTYCHEWY
+  <span style="color:#2aa198">0x43EC02</span>, # THIRDBLINTZ
+  <span style="color:#2aa198">0x43EAD7</span>, # DURABLERUNNIER
+  <span style="color:#2aa198">0x43E96D</span>, # MOCKBLENT
+  <span style="color:#2aa198">0x445376</span>, # BURPEDLUBED
+  <span style="color:#2aa198">0x445761</span>, # ODOROUSJEWELER
+  <span style="color:#2aa198">0x44C195</span>, # SUCHFORESEE
+  <span style="color:#2aa198">0x44C57B</span>, # EVASIVEDUET
+  <span style="color:#2aa198">0x452DA4</span>, # RIGIDTRADUCE
+  <span style="color:#2aa198">0x453179</span>, # LAWFULOFFBEAT
+  <span style="color:#2aa198">0x459BD8</span>, # POETICARTLESS
+  <span style="color:#2aa198">0x459FFD</span>, # CHOPPYSLIDER
+  <span style="color:#2aa198">0x45A133</span>, # CONICALMESAS
+  <span style="color:#2aa198">0x45A2B0</span>, # BAGBARREL
+  <span style="color:#2aa198">0x46073A</span>, # RADIUMUNIQUER
+  <span style="color:#2aa198">0x4610D3</span>, # ANNEALMOURN
+  <span style="color:#2aa198">0x461250</span>, # ALIVECURTEST
+  <span style="color:#2aa198">0x4613D0</span>, # FECALSWOLLEN
+  <span style="color:#2aa198">0x4604D0</span>, # CAUSTICNYMPHS
+  <span style="color:#2aa198">0x45A516</span>, # SERUMPONTOON
+  <span style="color:#2aa198">0x4595DF</span>, # AGAPETHEATER
+  <span style="color:#2aa198">0x45373A</span>, # RICKSHAVERTIGO
+  <span style="color:#2aa198">0x452834</span>, # KINETICJADING
+  <span style="color:#2aa198">0x44CB22</span>, # CALICOSPUSSY
+  <span style="color:#2aa198">0x44C9A2</span>, # TONECOMPETE
+  <span style="color:#2aa198">0x44C822</span>, # GOODROVER
+  <span style="color:#2aa198">0x44BEFB</span>, # YOGISFAIREST
+  <span style="color:#2aa198">0x445A3A</span>, # IMMORALRAREFY
+  <span style="color:#2aa198">0x445BE2</span>, # PLYWOODSHANK
+  <span style="color:#2aa198">0x445D18</span>, # LUCKYHOMONYM
+  <span style="color:#2aa198">0x445EC0</span>, # HEAVENHAZEL
+  <span style="color:#2aa198">0x446068</span>, # LOUTISHTHEREIN
+  <span style="color:#2aa198">0x444A5E</span>, # RIFESHORTEN
+  <span style="color:#2aa198">0x43F20C</span>, # EMPTYTYMPANA
+  <span style="color:#2aa198">0x43DCB9</span>, # ELEGIACDELUXE
+  <span style="color:#2aa198">0x438315</span>, # FIBBERFALCON
+  <span style="color:#2aa198">0x438495</span>, # LINGUALGLAD
+  <span style="color:#2aa198">0x438612</span>, # SHRINKSPAR
+  <span style="color:#2aa198">0x436D37</span>, # FICTIONRETRACT
+  <span style="color:#2aa198">0x431992</span>, # COSIEREXECS
+  <span style="color:#2aa198">0x431AFC</span>, # POLISHCACTI
+  <span style="color:#2aa198">0x431C27</span>, # PERIWIGMARINER
+  <span style="color:#2aa198">0x42FBCA</span>, # UNJUSTPACIFIC
+  <span style="color:#2aa198">0x42AFF1</span>, # PARDONREEKS
+  <span style="color:#2aa198">0x4290D5</span>, # BRAYEDBASIL
+  <span style="color:#2aa198">0x4242B5</span>, # BAUBLEVILLAIN
+  <span style="color:#2aa198">0x42441F</span>, # BENCHCHORUS
+  <span style="color:#2aa198">0x4245C7</span>, # GROSSPATE
+  <span style="color:#2aa198">0x421F21</span>, # ABLERCAM
+  <span style="color:#2aa198">0x41D84E</span>, # FINALPERTEST
+  <span style="color:#2aa198">0x41B404</span>, # METRICCONTAIN
+  <span style="color:#2aa198">0x416DD6</span>, # NOURISHLEG
+  <span style="color:#2aa198">0x416C59</span>, # VIOLENTCRULLER
+  <span style="color:#2aa198">0x416ADC</span>, # NITERJEWEL
+  <span style="color:#2aa198">0x414B39</span>, # ADDUCEDREAD
+  <span style="color:#2aa198">0x40FC98</span>, # LARCENYCASTOR
+  <span style="color:#2aa198">0x40FB6D</span>, # RACEMESUBSUME
+  <span style="color:#2aa198">0x40FA37</span>, # GIBLETHOB
+  <span style="color:#2aa198">0x40F907</span>, # PUTTENURE
+  <span style="color:#2aa198">0x40F787</span>, # HUFFEDAUREOLA
+  <span style="color:#2aa198">0x4150E8</span>, # LYNXFORFEIT
+  <span style="color:#2aa198">0x416540</span>, # EERYGRINGO
+  # EERYGRINGO <span style="color:#719e07">-</span>&gt; GOUTIERSHILL
+  <span style="color:#2aa198">0x416668</span>, # collectible in EERYGRINGO
+  <span style="color:#2aa198">0x4150E8</span>, # LYNXFORFEIT
+  <span style="color:#2aa198">0x40F787</span>, # HUFFEDAUREOLA
+  <span style="color:#2aa198">0x40F907</span>, # PUTTENURE
+  <span style="color:#2aa198">0x40FA37</span>, # GIBLETHOB
+  <span style="color:#2aa198">0x40FB6D</span>, # RACEMESUBSUME
+  <span style="color:#2aa198">0x40FC98</span>, # LARCENYCASTOR
+  <span style="color:#2aa198">0x40FE40</span>, # WINDIERHIND
+  <span style="color:#2aa198">0x40FFE8</span>, # RASCALCHARM
+  <span style="color:#2aa198">0x40D990</span>, # COCCISWALLOP
+  <span style="color:#2aa198">0x40919F</span>, # BILIOUSRETOOL
+  <span style="color:#2aa198">0x409309</span>, # AGATEWOOFS
+  <span style="color:#2aa198">0x409473</span>, # PRIZEBANGING
+  <span style="color:#2aa198">0x4095A1</span>, # TRIKEFINESSE
+  <span style="color:#2aa198">0x40970B</span>, # HAPPYSHADOWY
+  <span style="color:#2aa198">0x4098B3</span>, # MUFFLECOLLEGE
+  <span style="color:#2aa198">0x409A1D</span>, # FELLEREASEL
+  <span style="color:#2aa198">0x409B46</span>, # CLOBBERPINCER
+  <span style="color:#2aa198">0x409C71</span>, # GOUTIERSHILL
+  # GOUTIERSHILL <span style="color:#719e07">-</span>&gt; MAJORKNIT
+  <span style="color:#2aa198">0x409D61</span>, # collectible in GOUTIERSHILL
+  <span style="color:#2aa198">0x409DFE</span>, # STICKYLUSTIER
+  <span style="color:#2aa198">0x409FA6</span>, # JAWINGPOOREST
+  <span style="color:#2aa198">0x40A0D4</span>, # COSTLYBANI
+  <span style="color:#2aa198">0x40A20A</span>, # DEPOTNICHE
+  <span style="color:#2aa198">0x40A335</span>, # FULLLOUSY
+  <span style="color:#2aa198">0x40A460</span>, # UNLUCKYLAUGH
+  <span style="color:#2aa198">0x40A608</span>, # BRUISERRAINIER
+  <span style="color:#2aa198">0x40A7B0</span>, # SEPALTRIPOS
+  <span style="color:#2aa198">0x40C299</span>, # MIMEINVEIGH
+  <span style="color:#2aa198">0x411795</span>, # COPILOTLAUGH
+  <span style="color:#2aa198">0x413191</span>, # SHAMBLEPALE
+  <span style="color:#2aa198">0x418421</span>, # DUBIOUSMADCAP
+  <span style="color:#2aa198">0x418557</span>, # SEPTICNOVELTY
+  <span style="color:#2aa198">0x418685</span>, # OAFISHINSOLE
+  <span style="color:#2aa198">0x41882D</span>, # CURRENTRESIDE
+  <span style="color:#2aa198">0x418966</span>, # TAPIOCATICKET
+  <span style="color:#2aa198">0x418A9C</span>, # WUSSDEPLANE
+  <span style="color:#2aa198">0x418BCA</span>, # LABIALOUTWEAR
+  <span style="color:#2aa198">0x419552</span>, # HENCAMBER
+  <span style="color:#2aa198">0x41F559</span>, # STABLETANAGER
+  <span style="color:#2aa198">0x420011</span>, # UNPAIDCAPTIVE
+  <span style="color:#2aa198">0x42647F</span>, # HAPPYPARKING
+  <span style="color:#2aa198">0x426315</span>, # ARCHIVERHEA
+  <span style="color:#2aa198">0x4261D8</span>, # MAJORKNIT
+  # MAJORKNIT <span style="color:#719e07">-</span>&gt; UPTOWNROBBED
+  <span style="color:#2aa198">0x4262A6</span>, # collectible in MAJORKNIT
+  <span style="color:#2aa198">0x426315</span>, # ARCHIVERHEA
+  <span style="color:#2aa198">0x42647F</span>, # HAPPYPARKING
+  <span style="color:#2aa198">0x420011</span>, # UNPAIDCAPTIVE
+  <span style="color:#2aa198">0x41F559</span>, # STABLETANAGER
+  <span style="color:#2aa198">0x419552</span>, # HENCAMBER
+  <span style="color:#2aa198">0x418BCA</span>, # LABIALOUTWEAR
+  <span style="color:#2aa198">0x418A9C</span>, # WUSSDEPLANE
+  <span style="color:#2aa198">0x418966</span>, # TAPIOCATICKET
+  <span style="color:#2aa198">0x41882D</span>, # CURRENTRESIDE
+  <span style="color:#2aa198">0x418685</span>, # OAFISHINSOLE
+  <span style="color:#2aa198">0x418557</span>, # SEPTICNOVELTY
+  <span style="color:#2aa198">0x418421</span>, # DUBIOUSMADCAP
+  <span style="color:#2aa198">0x419DB1</span>, # WIDEHOKEY
+  <span style="color:#2aa198">0x41EDF0</span>, # OMINOUSPALL
+  <span style="color:#2aa198">0x4208A2</span>, # WORNUNTRUER
+  <span style="color:#2aa198">0x425CA1</span>, # FAIRSLEUTH
+  <span style="color:#2aa198">0x425E0B</span>, # EQUABLEBROODER
+  <span style="color:#2aa198">0x425F3B</span>, # CROUCHPASTA
+  <span style="color:#2aa198">0x4274B5</span>, # FUMBLERGRAVEST
+  <span style="color:#2aa198">0x42CB03</span>, # SECRETLEFTIE
+  <span style="color:#2aa198">0x42CC2E</span>, # OVERALLBEAUTY
+  <span style="color:#2aa198">0x42CDAB</span>, # LAMBDALECTERN
+  <span style="color:#2aa198">0x42CF2B</span>, # DURABLEMUKLUKS
+  <span style="color:#2aa198">0x42D095</span>, # YUPPYMATZOS
+  <span style="color:#2aa198">0x42D1FF</span>, # RARESTHUBBY
+  <span style="color:#2aa198">0x42D37C</span>, # ANGRYHIKE
+  <span style="color:#2aa198">0x426B87</span>, # TALENTDISBAR
+  <span style="color:#2aa198">0x426732</span>, # ACETICACCESS
+  <span style="color:#2aa198">0x4268AF</span>, # GLOBALROOM
+  <span style="color:#2aa198">0x403AD1</span>, # WEEKENDBUSSING
+  <span style="color:#2aa198">0x403929</span>, # BRASSTUMBLER
+  <span style="color:#2aa198">0x403781</span>, # FORMALSAG
+  <span style="color:#2aa198">0x403617</span>, # PELICANSUNLIT
+  <span style="color:#2aa198">0x4034E1</span>, # MODESTRECITAL
+  <span style="color:#2aa198">0x403364</span>, # TROUGHBLANCH
+  <span style="color:#2aa198">0x4031BC</span>, # UNMORALRHYTHM
+  <span style="color:#2aa198">0x403052</span>, # JIGGEDLEMUR
+  <span style="color:#2aa198">0x402F1C</span>, # UNREADUNCUT
+  <span style="color:#2aa198">0x402DB2</span>, # TINYPAPA
+  <span style="color:#2aa198">0x402BF3</span>, # UPTOWNROBBED
+  # UPTOWNROBBED <span style="color:#719e07">-</span>&gt; TUMORPEG
+  <span style="color:#2aa198">0x402D1E</span>, # collectible in UPTOWNROBBED
+  <span style="color:#2aa198">0x402DB2</span>, # TINYPAPA
+  <span style="color:#2aa198">0x402F1C</span>, # UNREADUNCUT
+  <span style="color:#2aa198">0x403052</span>, # JIGGEDLEMUR
+  <span style="color:#2aa198">0x4031BC</span>, # UNMORALRHYTHM
+  <span style="color:#2aa198">0x403364</span>, # TROUGHBLANCH
+  <span style="color:#2aa198">0x4034E1</span>, # MODESTRECITAL
+  <span style="color:#2aa198">0x403617</span>, # PELICANSUNLIT
+  <span style="color:#2aa198">0x403781</span>, # FORMALSAG
+  <span style="color:#2aa198">0x403929</span>, # BRASSTUMBLER
+  <span style="color:#2aa198">0x403AD1</span>, # WEEKENDBUSSING
+  <span style="color:#2aa198">0x4268AF</span>, # GLOBALROOM
+  <span style="color:#2aa198">0x426732</span>, # ACETICACCESS
+  <span style="color:#2aa198">0x426B87</span>, # TALENTDISBAR
+  <span style="color:#2aa198">0x42D37C</span>, # ANGRYHIKE
+  <span style="color:#2aa198">0x42D1FF</span>, # RARESTHUBBY
+  <span style="color:#2aa198">0x42D095</span>, # YUPPYMATZOS
+  <span style="color:#2aa198">0x42CF2B</span>, # DURABLEMUKLUKS
+  <span style="color:#2aa198">0x42CDAB</span>, # LAMBDALECTERN
+  <span style="color:#2aa198">0x42CC2E</span>, # OVERALLBEAUTY
+  <span style="color:#2aa198">0x42CB03</span>, # SECRETLEFTIE
+  <span style="color:#2aa198">0x42E00C</span>, # AORTAEACHE
+  <span style="color:#2aa198">0x4337D0</span>, # AIMLESSTALK
+  <span style="color:#2aa198">0x434D79</span>, # ODIOUSBLOCK
+  <span style="color:#2aa198">0x43A56B</span>, # ANGEREDDWARF
+  <span style="color:#2aa198">0x43A3EB</span>, # REAPBLIMP
+  <span style="color:#2aa198">0x43A2B1</span>, # REFRAINWEDDER
+  <span style="color:#2aa198">0x43BD18</span>, # FERTILEHURTLE
+  <span style="color:#2aa198">0x44113B</span>, # CONDUCTCRISIS
+  <span style="color:#2aa198">0x442BC5</span>, # FURNISHFAIR
+  <span style="color:#2aa198">0x447E9E</span>, # MAINMANIKIN
+  <span style="color:#2aa198">0x447CF6</span>, # ANTIQUEIVY
+  <span style="color:#2aa198">0x447BC0</span>, # GENERALPROSODY
+  <span style="color:#2aa198">0x447A40</span>, # CONICALPISS
+  <span style="color:#2aa198">0x447898</span>, # VIRTUALBULKIER
+  <span style="color:#2aa198">0x449F01</span>, # SKEPTICBEGS
+  <span style="color:#2aa198">0x44E6C1</span>, # PREPPYCLUNG
+  <span style="color:#2aa198">0x44E7EC</span>, # PUBLISHSOLOED
+  <span style="color:#2aa198">0x44E956</span>, # GARAGETAXIS
+  <span style="color:#2aa198">0x4509EC</span>, # MOVABLESHUNT
+  <span style="color:#2aa198">0x45563C</span>, # CURIOUSMUSCLE
+  <span style="color:#2aa198">0x4557BC</span>, # VESTTYPESET
+  <span style="color:#2aa198">0x455964</span>, # HAPPYTUCKER
+  <span style="color:#2aa198">0x455B0C</span>, # COMBOSEPTET
+  <span style="color:#2aa198">0x455C76</span>, # SLIMYUSER
+  <span style="color:#2aa198">0x4503EE</span>, # UNSOLDPEEL
+  <span style="color:#2aa198">0x44EEB2</span>, # COMMONSTYLIST
+  <span style="color:#2aa198">0x449776</span>, # SEWERLUMMOX
+  <span style="color:#2aa198">0x448159</span>, # TUMORPEG
+  # TUMORPEG <span style="color:#719e07">-</span>&gt; PURISTBENDER
+  <span style="color:#2aa198">0x448281</span>, # collectible in TUMORPEG
+  <span style="color:#2aa198">0x449776</span>, # SEWERLUMMOX
+  <span style="color:#2aa198">0x44EEB2</span>, # COMMONSTYLIST
+  <span style="color:#2aa198">0x4503EE</span>, # UNSOLDPEEL
+  <span style="color:#2aa198">0x455C76</span>, # SLIMYUSER
+  <span style="color:#2aa198">0x455B0C</span>, # COMBOSEPTET
+  <span style="color:#2aa198">0x455964</span>, # HAPPYTUCKER
+  <span style="color:#2aa198">0x4557BC</span>, # VESTTYPESET
+  <span style="color:#2aa198">0x45563C</span>, # CURIOUSMUSCLE
+  <span style="color:#2aa198">0x4509EC</span>, # MOVABLESHUNT
+  <span style="color:#2aa198">0x44E956</span>, # GARAGETAXIS
+  <span style="color:#2aa198">0x44E7EC</span>, # PUBLISHSOLOED
+  <span style="color:#2aa198">0x44E6C1</span>, # PREPPYCLUNG
+  <span style="color:#2aa198">0x450C62</span>, # SHINWALLEYE
+  <span style="color:#2aa198">0x45538F</span>, # THOUSHEATER
+  <span style="color:#2aa198">0x457AF1</span>, # SLOPPYCOUPLE
+  <span style="color:#2aa198">0x45C0B4</span>, # DYNAMICREAR
+  <span style="color:#2aa198">0x45E6BF</span>, # AROSENOSTRUM
+  <span style="color:#2aa198">0x463064</span>, # CLUSTERDOZE
+  <span style="color:#2aa198">0x4631E1</span>, # SEISMICWOOZY
+  <span style="color:#2aa198">0x46330C</span>, # AMOROUSQUIZ
+  <span style="color:#2aa198">0x4652ED</span>, # BURROAPT
+  <span style="color:#2aa198">0x46A215</span>, # GRATISRIBALD
+  <span style="color:#2aa198">0x46A06D</span>, # FESTIVEUNCORK
+  <span style="color:#2aa198">0x469F03</span>, # ADJUDGEDELVE
+  <span style="color:#2aa198">0x469DCD</span>, # UNAIDEDMIDWAY
+  <span style="color:#2aa198">0x469C63</span>, # TRUMPETLID
+  <span style="color:#2aa198">0x469AE3</span>, # MUCHOBJECT
+  <span style="color:#2aa198">0x4699B8</span>, # CIVILGLUEY
+  <span style="color:#2aa198">0x46988D</span>, # BUBBLEABACK
+  <span style="color:#2aa198">0x469723</span>, # SCUMMYTUNIC
+  <span style="color:#2aa198">0x46CD40</span>, # FONDUEINVOKE
+  <span style="color:#2aa198">0x470293</span>, # ELUSIVESWEAR
+  <span style="color:#2aa198">0x4737D8</span>, # FINALSHEET
+  <span style="color:#2aa198">0x476DE4</span>, # ZOMBIMINIVAN
+  <span style="color:#2aa198">0x476CB9</span>, # ALIVEDIORAMA
+  <span style="color:#2aa198">0x476B81</span>, # SENSUALPOLEMIC
+  <span style="color:#2aa198">0x47A67B</span>, # PURISTBENDER
+  # PURISTBENDER <span style="color:#719e07">-</span>&gt; AMOUNTRAKISH
+  <span style="color:#2aa198">0x47A73F</span>, # collectible in PURISTBENDER
+  <span style="color:#2aa198">0x47D765</span>, # SEMINALPIQUE
+  <span style="color:#2aa198">0x48132A</span>, # GENERALBUNKING
+  <span style="color:#2aa198">0x4845CC</span>, # UNSOLDFEST
+  <span style="color:#2aa198">0x48844B</span>, # WARBLESERMON
+  <span style="color:#2aa198">0x48B5A5</span>, # UNDIDSILKY
+  <span style="color:#2aa198">0x48B47A</span>, # BEATERBODE
+  <span style="color:#2aa198">0x48B34F</span>, # ADJUSTRANKEST
+  <span style="color:#2aa198">0x48B219</span>, # DRAFTEEBRIDGE
+  <span style="color:#2aa198">0x48B09C</span>, # OPTICALCORNET
+  <span style="color:#2aa198">0x48AEF4</span>, # OVARYTRUNDLE
+  <span style="color:#2aa198">0x48AD8A</span>, # HACKSAWFRAT
+  <span style="color:#2aa198">0x48AC20</span>, # CIVETPARFAIT
+  <span style="color:#2aa198">0x48AAE6</span>, # SHINGLEKNIFE
+  <span style="color:#2aa198">0x48A97C</span>, # UNITYCLEANSE
+  <span style="color:#2aa198">0x48A7FC</span>, # VOILEFIRMEST
+  <span style="color:#2aa198">0x48A643</span>, # AMOUNTRAKISH
+  # AMOUNTRAKISH <span style="color:#719e07">-</span>&gt; LAYOVERCLINK
+  <span style="color:#2aa198">0x48A76B</span>, # collectible in AMOUNTRAKISH
+  <span style="color:#2aa198">0x48A7FC</span>, # VOILEFIRMEST
+  <span style="color:#2aa198">0x48A97C</span>, # UNITYCLEANSE
+  <span style="color:#2aa198">0x48AAE6</span>, # SHINGLEKNIFE
+  <span style="color:#2aa198">0x48AC20</span>, # CIVETPARFAIT
+  <span style="color:#2aa198">0x48AD8A</span>, # HACKSAWFRAT
+  <span style="color:#2aa198">0x48AEF4</span>, # OVARYTRUNDLE
+  <span style="color:#2aa198">0x48B09C</span>, # OPTICALCORNET
+  <span style="color:#2aa198">0x48B219</span>, # DRAFTEEBRIDGE
+  <span style="color:#2aa198">0x48B34F</span>, # ADJUSTRANKEST
+  <span style="color:#2aa198">0x48B47A</span>, # BEATERBODE
+  <span style="color:#2aa198">0x48B5A5</span>, # UNDIDSILKY
+  <span style="color:#2aa198">0x48B6DB</span>, # RETRYJAB
+  <span style="color:#2aa198">0x48B806</span>, # RITZIERCOARSER
+  <span style="color:#2aa198">0x48B970</span>, # NEEDFULWALLOW
+  <span style="color:#2aa198">0x48BAED</span>, # VITAMINGRIPE
+  <span style="color:#2aa198">0x48BC23</span>, # WRYROPED
+  <span style="color:#2aa198">0x48BDA3</span>, # FAMOUSSEGUE
+  <span style="color:#2aa198">0x48BECC</span>, # THROELEAKIER
+  <span style="color:#2aa198">0x48BFF7</span>, # VIABLEGOOIEST
+  <span style="color:#2aa198">0x48C177</span>, # BADEDISPEL
+  <span style="color:#2aa198">0x48C31F</span>, # DECENTPRIEST
+  <span style="color:#2aa198">0x48C49C</span>, # DETESTRETORT
+  <span style="color:#2aa198">0x48C644</span>, # EARMARKDANDY
+  <span style="color:#2aa198">0x4872F3</span>, # VICIOUSBRAZIER
+  <span style="color:#2aa198">0x48579B</span>, # AERIALEMPANEL
+  <span style="color:#2aa198">0x485631</span>, # PANGLEMUR
+  <span style="color:#2aa198">0x4854C7</span>, # STAREHACKNEY
+  <span style="color:#2aa198">0x48530E</span>, # LAYOVERCLINK
+  # LAYOVERCLINK <span style="color:#719e07">-</span>&gt; UPPERTOPSIDE
+  <span style="color:#2aa198">0x485436</span>, # collectible in LAYOVERCLINK
+  <span style="color:#2aa198">0x4854C7</span>, # STAREHACKNEY
+  <span style="color:#2aa198">0x485631</span>, # PANGLEMUR
+  <span style="color:#2aa198">0x48579B</span>, # AERIALEMPANEL
+  <span style="color:#2aa198">0x4872F3</span>, # VICIOUSBRAZIER
+  <span style="color:#2aa198">0x48C644</span>, # EARMARKDANDY
+  <span style="color:#2aa198">0x48C7AE</span>, # HUMERIUPPITY
+  <span style="color:#2aa198">0x48C8E4</span>, # UPPERTOPSIDE
+  # UPPERTOPSIDE <span style="color:#719e07">-</span>&gt; ESTUARYAJAR
+  <span style="color:#2aa198">0x48C9D4</span>, # collectible in UPPERTOPSIDE
+  <span style="color:#2aa198">0x48CA71</span>, # SHIELDOXFORD
+  <span style="color:#2aa198">0x48CBF1</span>, # SCABBEDDAWN
+  <span style="color:#2aa198">0x486CCB</span>, # REGULARPUDGIER
+  <span style="color:#2aa198">0x485D67</span>, # SPACIALCOHABIT
+  <span style="color:#2aa198">0x485BF3</span>, # ESTUARYAJAR
+  # ESTUARYAJAR <span style="color:#719e07">-</span>&gt; MINUTEMISFIRE
+  <span style="color:#2aa198">0x485CF6</span>, # collectible in ESTUARYAJAR
+  <span style="color:#2aa198">0x485D67</span>, # SPACIALCOHABIT
+  <span style="color:#2aa198">0x486CCB</span>, # REGULARPUDGIER
+  <span style="color:#2aa198">0x48CBF1</span>, # SCABBEDDAWN
+  <span style="color:#2aa198">0x48CD6E</span>, # FONDUECRASS
+  <span style="color:#2aa198">0x48CEEB</span>, # GRUMBLEFAUNAE
+  <span style="color:#2aa198">0x48D06B</span>, # HILLTOPBEEFIER
+  <span style="color:#2aa198">0x48D196</span>, # ALLOYJAW
+  <span style="color:#2aa198">0x48D300</span>, # OWNRAVINE
+  <span style="color:#2aa198">0x40109A</span>, # MINUTEMISFIRE
+  <span style="color:#2aa198">0x40119D</span> # FINAL!
+</code></pre></td></tr></table>
+</div>
+</div><p>Cool! This should be EASY MODE now!</p>
+<div style="text-align: center;">
+     . 
+</div>    
+<div style="text-align: center;">
+     . 
+</div>    
+<div style="text-align: center;">
+     . 
+</div>    
+<div style="text-align: center;">
+     . 
+</div>    
+<div style="text-align: center;">
+     . 
+</div>    
+<div style="text-align: center;">
+     . 
+</div>    
+<div style="text-align: center;">
+     . 
+</div>    
+<div style="text-align: center;">
+<p><em>24 hours later</em></p>
+</div>    
+<p><img src="../../vegetativestate.jpg" alt="Vegetative State"></p>
+<p>I have reached the ultimate vegetative state after trying to learn angr.</p>
+<p>Because the application is relatively complex, the idea is to take two neighboring functions at a time by using their addresses. Let&rsquo;s call these address A and B. We find the input required to pass from addres A to addres B, and we continue to find the input to progress from B to C, C to D etc.</p>
+<p>Because the path is long, I figured I would use angr in order to do this, because it would automatically solve for the required inputs.</p>
+<p>However, I ran into a lot of issues (mostly because it was my first time using angr!). Nonetheless, after hours of banging my head against my keyboard I wrote up a script that finds the required inputs one by one and prints them out in a ridiculously shitty format.</p>
+<p>Therefore, because I am so incredibly smart (like who wants to do it all in one script????), I wrote a parser to parse the output of my first script into something we can send to the binary and solve it :D</p>
+<p>The first script which calculates the inputs can be found <a href="https://gist.github.com/xenocidewiki/fc7ebf6d7499319ab305a55f6b4894cc">here</a></p>
+<p>The tl;dr is that we hook <code>scanf</code> and <code>strlen</code> and let angr solve constraints.</p>
+<p>However, a few things to explain:</p>
+<ul>
+<li>
+<p><code>goals</code> is a list of addresses we want to find the inputs to go between.</p>
+</li>
+<li>
+<p><code>hookaddrs</code> is a list of addresses of <code>strlen</code> calls that we have to hook, otherwise angr commits sudoku.</p>
+</li>
+<li>
+<p><code>funcaddrs</code> is a list of function addresses that correspond to each strlen that exists in the binary (not all functions use strlen!)</p>
+</li>
+<li>
+<p><code>avoids</code> is a list of all addresses we want to avoid, effectively we temporarily remove the points A and B we want to go between and avoid everything else, then when a solution is found we append them again.</p>
+</li>
+<li>
+<p><code>scanf_str</code>, <code>scanf_3d</code>, <code>scanf_2d1c</code>, <code>singlec</code>, all correspond to global variables which describe the format <code>scanf</code> is parsing our input in. We consider this in our hook because constraints will vary.</p>
+</li>
+<li>
+<p>Line #367 is very important, we need to limit the <code>scanf</code>'s which take <code>%8s</code> as input to ASCII characters, otherwise the solution doesn&rsquo;t work for some reason, trust me I learned the hard way :^)</p>
+</li>
+</ul>
+<p>You can run the script as follows:</p>
+<div class="highlight"><pre style="color:#93a1a1;background-color:#002b36;-moz-tab-size:4;-o-tab-size:4;tab-size:4"><code class="language-fallback" data-lang="fallback">python hydrogen-bomb-solve.py &gt; outputname.txt
+</code></pre></div><p>The script to parse the output of the above (given you remove all the spaces on each line), can be found <a href="https://gist.github.com/xenocidewiki/f0ec96f488631d44c6f53eff235ea4be">here</a>.</p>
+<p>It effectively parses everything and sends it off to the server.</p>
+<p>When that finishes running, we get our sweeeeeet flag:</p>
+<p><code>IceCTF{aut0mat1on_w1ll_e4t_4ll_0ur_j0bs}</code></p>
+
+		</div>
+
+		<div class="post-tags">
+			
+				
+					<nav class="nav tags">
+							<ul class="flat">
+								
+								<li><a href="/tags/reversing">reversing</a></li>
+								
+								<li><a href="/tags/angr">angr</a></li>
+								
+								<li><a href="/tags/ctf">ctf</a></li>
+								
+								<li><a href="/tags/icectf">icectf</a></li>
+								
+							</ul>
+					</nav>
+				
+			
+		</div>
+		</div>
+	<div class="footer wrapper">
+	<nav class="nav">
+		<div> © xenocide.wiki |  <a href="https://github.com/vividvilla/ezhil">Ezhil theme</a> | Built with <a href="https://gohugo.io">Hugo</a></div>
+	</nav>
+</div>
+
+
+
+<script type="application/javascript">
+var doNotTrack = false;
+if (!doNotTrack) {
+	window.ga=window.ga||function(){(ga.q=ga.q||[]).push(arguments)};ga.l=+new Date;
+	ga('create', 'UA-156059411-1', 'auto');
+	
+	ga('send', 'pageview');
+}
+</script>
+<script async src='https://www.google-analytics.com/analytics.js'></script>
+
+<script>feather.replace()</script>
+</body>
+</html>

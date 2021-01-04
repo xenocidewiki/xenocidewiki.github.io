@@ -189,6 +189,8 @@ ul {
 .highlight {
     background: 0 0;
     background-color: #FAFAFA;
+    overflow-y: scroll;
+    max-height: 400px;
 }
 
 .wrapper {

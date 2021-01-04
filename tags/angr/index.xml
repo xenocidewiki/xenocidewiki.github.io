@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?>
+<rss version="2.0" xmlns:atom="http://www.w3.org/2005/Atom">
+  <channel>
+    <title>angr on xenocidewiki&#39;s blog</title>
+    <link>https://xenocide.wiki/tags/angr/</link>
+    <description>Recent content in angr on xenocidewiki&#39;s blog</description>
+    <generator>Hugo -- gohugo.io</generator>
+    <language>en-us</language>
+    <copyright>© xenocide.wiki</copyright>
+    <lastBuildDate>Mon, 04 Jan 2021 01:25:00 +0100</lastBuildDate>
+    
+	<atom:link href="https://xenocide.wiki/tags/angr/index.xml" rel="self" type="application/rss+xml" />
+    
+    
+    <item>
+      <title>IceCTF 2020 | Hydrogen Bomb Writeup</title>
+      <link>https://xenocide.wiki/posts/icectf-hydrogen-bomb/</link>
+      <pubDate>Mon, 04 Jan 2021 01:25:00 +0100</pubDate>
+      
+      <guid>https://xenocide.wiki/posts/icectf-hydrogen-bomb/</guid>
+      <description>Intro We are given a binary called bomb which is a billion functions taking input, where the goal is to find a sequence of inputs that gets us to a function called defuse which prints the flag.
+We will embark on a journey that fried my brain and left me with two(!) out of the three braincells I already had remaining.
+In order to get to defuse, we need to pass the following check:</description>
+    </item>
+    
+  </channel>
+</rss>
